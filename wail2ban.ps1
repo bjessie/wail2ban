@@ -31,9 +31,10 @@ $DebugPreference = "continue"
 ################################################################################
 #  Constants
 
-$CHECK_WINDOW = 120  # We check the most recent X seconds of log.         Default: 120
-$CHECK_COUNT  = 5    # Ban after this many failures in search period.     Default: 5
+$CHECK_WINDOW = 240  # We check the most recent X seconds of log.         Default: 120
+$CHECK_COUNT  = 2    # Ban after this many failures in search period.     Default: 5
 $MAX_BANDURATION = 7776000 # 3 Months in seconds
+$BanMultiplier = '100' # Increases the ban duration  Default: 1
 	
 ################################################################################
 #  Files
@@ -50,7 +51,7 @@ $BannedIPLog	 = $wail2banInstall+"bannedIPLog.ini"
 $RecordEventLog     = "Application"     # Where we store our own event messages
 $FirewallRulePrefix = "wail2ban block:" # What we name our Rules
 
-$EventTypes = "Application,Security,System"	  #Event logs we allow to be processed
+$EventTypes = "Application,Security,System,Microsoft-Windows-RemoteDesktopServices-RdpCoreTS/Operational"	  #Event logs we allow to be processed
 
 New-Variable -Name RegexIP -Force -Value ([regex]'(?<First>2[0-4]\d|25[0-5]|[01]?\d\d?)\.(?<Second>2[0-4]\d|25[0-5]|[01]?\d\d?)\.(?<Third>2[0-4]\d|25[0-5]|[01]?\d\d?)\.(?<Fourth>2[0-4]\d|25[0-5]|[01]?\d\d?)')
 
@@ -65,8 +66,12 @@ $null = $CheckEvents.columns.add("EventDescription")
 $WhiteList = @()
 #$host.UI.RawUI.BufferSize = new-object System.Management.Automation.Host.Size(100,50)
 
+#You can overload the BlockType here for 2003, if you feel like having fun. 
 $OSVersion = invoke-expression "wmic os get Caption /value"
-$BLOCK_TYPE = "NETSH"
+if ($OSVersion -match "2008") { $BLOCK_TYPE = "NETSH" }
+if ($OSVersion -match "2012") { $BLOCK_TYPE = "NETSH" }
+if ($OSVersion -match "2016") { $BLOCK_TYPE = "NETSH" }
+if ($OSVersion -match "Windows") { $BLOCK_TYPE = "NETSH" }
 
 #Grep configuration file 
 switch -regex -file $ConfigFile {
@@ -204,7 +209,7 @@ function getBanDuration ($IP) {
 	} 
 	$Setting++
 	$BannedIPs.Set_Item($IP,$Setting)
-	$BanDuration =  [math]::min([math]::pow(5,$Setting)*60, $MAX_BANDURATION)
+	$BanDuration =  [math]::min([math]::pow(5,$Setting)*60*$BanMultiplier, $MAX_BANDURATION)
 	debug "IP $IP has the new setting of $setting, being $BanDuration seconds"
 	if (Test-Path $BannedIPLog) { clear-content $BannedIPLog } else { New-Item $BannedIPLog -type file }
 	$BannedIPs.keys  | %{ "$_ "+$BannedIPs.Get_Item($_) | Out-File $BannedIPLog -Append }
